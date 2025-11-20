@@ -2,9 +2,10 @@ import Event from "../models/Events.js";
 
 export const createEvent = async (req, res) => {
   try {
-    const { title, description, date, venue, address, coordinates } = req.body;
+    const { title, description, date, time, venue, location, maxAttendees } =
+      req.body;
 
-    if (!title || !date) {
+    if (!title || !date || !time || !venue || !maxAttendees) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -12,23 +13,18 @@ export const createEvent = async (req, res) => {
       title,
       description,
       date,
+      time,
       venue,
-      address,
-      createdBy: req.user._id,
+      maxAttendees,
+      location,
+      organizer: req.user._id,
     };
 
-    // 🧭 Koordinat kontrolü
-    if (coordinates && Array.isArray(coordinates) && coordinates.length === 2) {
-      eventData.location = { type: "Point", coordinates };
-    }
-
-    // 🖼️ Görsel varsa ekle
     if (req.file) {
-      eventData.image = req.file.path; // Cloudinary veya upload URL
+      eventData.image = req.file.path; // upload veya Cloudinary URL
     }
 
     const event = await Event.create(eventData);
-
     res.status(201).json({ message: "Event created successfully", event });
   } catch (error) {
     console.error("Error in createEvent:", error.message);
@@ -102,12 +98,17 @@ export const applyToEvent = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ message: "Event not found" });
 
-    if (event.participants.includes(userId)) {
+    if (event.attendees.includes(userId)) {
       return res.status(400).json({ message: "Already joined this event" });
     }
 
-    event.participants.push(userId);
+    // Event.attendees ve User.joinedEvents güncelle
+    event.attendees.push(userId);
     await event.save();
+
+    const user = await User.findById(userId);
+    user.joinedEvents.push(eventId);
+    await user.save();
 
     res.json({ message: "Successfully joined the event", event });
   } catch (error) {
@@ -173,32 +174,18 @@ export const searchEvents = async (req, res) => {
 export const getEventDetails = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id)
-      .populate("createdBy", "name email")
-      .populate("participants", "name email");
+      .populate("organizer", "name email")
+      .populate("attendees", "name email");
 
-    if (!event) {
-      return res.status(404).json({ message: "Event not found" });
-    }
+    if (!event) return res.status(404).json({ message: "Event not found" });
 
     const isJoined = req.user
-      ? event.participants.some(
+      ? event.attendees.some(
           (p) => p._id.toString() === req.user._id.toString()
         )
       : false;
 
-    res.json({
-      event: {
-        _id: event._id,
-        title: event.title,
-        description: event.description,
-        date: event.date,
-        venue: event.venue,
-        address: event.address,
-        createdBy: event.createdBy,
-        participants: event.participants,
-      },
-      isJoined,
-    });
+    res.json({ event, isJoined });
   } catch (error) {
     console.error("Error in getEventDetails:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });

@@ -70,17 +70,59 @@ export const loginUser = async (req, res) => {
 export const getMyProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select("-password");
+
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const createdEvent = await Events.find({ creator: req.user._id });
+    // Oluşturulan etkinlikler
+    const createdEvents = await Events.find({ organizer: req.user._id });
 
+    // Katıldıkları etkinlikler
     const joinedEvents = await Events.find({ attendees: req.user._id });
 
-    res.json({ user, createdEvent, joinedEvents });
+    res.json({
+      user,
+      createdEvents,
+      joinedEvents,
+    });
   } catch (error) {
-    console.log("Error in getmyprofile:", error.message);
+    console.error("Error in getMyProfile:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const updateUserProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { name, email, password, avatar } = req.body;
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (avatar) user.avatar = avatar;
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password, salt);
+    }
+
+    const updatedUser = await user.save();
+
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        avatar: updatedUser.avatar,
+      },
+    });
+  } catch (error) {
+    console.error("Error in updateUserProfile:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
