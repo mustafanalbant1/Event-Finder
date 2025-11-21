@@ -2,16 +2,25 @@ import Event from "../models/Events.js";
 
 export const createEvent = async (req, res) => {
   try {
-    const { title, description, date, time, venue, location, maxAttendees } =
-      req.body;
+    const {
+      title,
+      description,
+      category,
+      date,
+      time,
+      venue,
+      location,
+      maxAttendees,
+    } = req.body;
 
-    if (!title || !date || !time || !venue || !maxAttendees) {
+    if (!title || !category || !date || !time || !venue || !maxAttendees) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     const eventData = {
       title,
       description,
+      category,
       date,
       time,
       venue,
@@ -21,7 +30,7 @@ export const createEvent = async (req, res) => {
     };
 
     if (req.file) {
-      eventData.image = req.file.path; // upload veya Cloudinary URL
+      eventData.image = req.file.path;
     }
 
     const event = await Event.create(eventData);
@@ -31,10 +40,9 @@ export const createEvent = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
-
 export const getAllEvents = async (req, res) => {
   try {
-    const events = await Event.find().populate("createdBy", "name email");
+    const events = await Event.find().populate("organizer", "name email");
     res.json(events);
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -43,11 +51,12 @@ export const getAllEvents = async (req, res) => {
 
 export const getEventById = async (req, res) => {
   try {
-    const event = await Event.findById(req.params.id).populate(
-      "createdBy",
-      "name email"
-    );
+    const event = await Event.findById(req.params.id)
+      .populate("organizer", "name email")
+      .populate("attendees", "name email");
+
     if (!event) return res.status(404).json({ message: "Event not found" });
+
     res.json(event);
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -59,13 +68,14 @@ export const updateEvent = async (req, res) => {
     const event = await Event.findById(req.params.id);
 
     if (!event) return res.status(404).json({ message: "Event not found" });
-    if (event.createdBy.toString() !== req.user._id.toString()) {
+    if (event.organizer.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
     const updated = await Event.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
     });
+
     res.json({ message: "Event updated", updated });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -75,9 +85,9 @@ export const updateEvent = async (req, res) => {
 export const deleteEvent = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
-    if (!event) return res.status(404).json({ message: "Event not found" });
 
-    if (event.createdBy.toString() !== req.user._id.toString()) {
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.organizer.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
@@ -85,7 +95,6 @@ export const deleteEvent = async (req, res) => {
 
     res.json({ message: "Event deleted successfully" });
   } catch (error) {
-    console.error("Error in deleteEvent:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -102,7 +111,6 @@ export const applyToEvent = async (req, res) => {
       return res.status(400).json({ message: "Already joined this event" });
     }
 
-    // Event.attendees ve User.joinedEvents güncelle
     event.attendees.push(userId);
     await event.save();
 
@@ -112,7 +120,6 @@ export const applyToEvent = async (req, res) => {
 
     res.json({ message: "Successfully joined the event", event });
   } catch (error) {
-    console.error("Error in applyToEvent:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -120,7 +127,7 @@ export const applyToEvent = async (req, res) => {
 export const getEventParticipants = async (req, res) => {
   try {
     const event = await Event.findById(req.params.id).populate(
-      "participants",
+      "attendees",
       "name email"
     );
 
@@ -128,8 +135,9 @@ export const getEventParticipants = async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    res.json({ participants: event.participants });
+    res.json({ participants: event.attendees });
   } catch (error) {
+    console.error("Error in getEventParticipants:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
@@ -140,13 +148,11 @@ export const searchEvents = async (req, res) => {
 
     let query = {};
 
-    // Başlık ve mekan için regex arama
     if (title) query.title = { $regex: title, $options: "i" };
     if (venue) query.venue = { $regex: venue, $options: "i" };
 
     let events;
 
-    // Konum filtreleme
     if (lat && lng && radius) {
       events = await Event.find({
         ...query,
@@ -156,17 +162,16 @@ export const searchEvents = async (req, res) => {
               type: "Point",
               coordinates: [parseFloat(lng), parseFloat(lat)],
             },
-            $maxDistance: parseFloat(radius) * 1000, // km → m
+            $maxDistance: parseFloat(radius) * 1000,
           },
         },
-      }).populate("createdBy", "name email");
+      }).populate("organizer", "name email");
     } else {
-      events = await Event.find(query).populate("createdBy", "name email");
+      events = await Event.find(query).populate("organizer", "name email");
     }
 
     res.json(events);
   } catch (error) {
-    console.error("Error in searchEvents:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
