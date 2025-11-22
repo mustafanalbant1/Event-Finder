@@ -7,6 +7,8 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minLength: 6 },
     joinedEvents: [{ type: mongoose.Schema.Types.ObjectId, ref: "Event" }],
     avatar: { type: String, default: "1" },
+    joinedEvents: [{ type: mongoose.Schema.Types.ObjectId, ref: "Event" }],
+    description: { type: String },
   },
   { timestamps: true }
 );

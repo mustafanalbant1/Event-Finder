@@ -1,4 +1,5 @@
 import Event from "../models/Events.js";
+import User from "../models/User.js";
 
 export const createEvent = async (req, res) => {
   try {
@@ -193,6 +194,29 @@ export const getEventDetails = async (req, res) => {
     res.json({ event, isJoined });
   } catch (error) {
     console.error("Error in getEventDetails:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getMyCreatedEvents = async (req, res) => {
+  try {
+    // req.user._id => login sonrası middleware ile atanmış user id
+    const myEvents = await Event.find({ organizer: req.user._id });
+    res.json(myEvents);
+  } catch (error) {
+    console.error("Error fetching my events:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getMyJoinedEventsIds = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select("joinedEvents");
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ joinedEventIds: user.joinedEvents });
+  } catch (error) {
+    console.error("Error fetching joined events:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };

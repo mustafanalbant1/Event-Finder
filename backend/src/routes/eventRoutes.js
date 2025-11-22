@@ -9,6 +9,8 @@ import {
   getEventParticipants,
   searchEvents,
   getEventDetails,
+  getMyCreatedEvents,
+  getMyJoinedEventsIds,
 } from "../controllers/eventController.js";
 import { protectRoute } from "../middleware/authMiddleware.js";
 import parser from "../middleware/upload.js";
@@ -17,6 +19,9 @@ const router = express.Router();
 
 router.get("/", getAllEvents);
 router.post("/", protectRoute, parser.single("image"), createEvent);
+
+router.get("/my-events", protectRoute, getMyCreatedEvents);
+router.get("/my-joined", protectRoute, getMyJoinedEventsIds);
 
 router.get("/search", searchEvents);
 router.get("/:id", getEventById);
